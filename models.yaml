@@ -1,0 +1,6 @@
+qwen3.6-27b:
+  repo: mlx-community/Qwen3.6-27B-4bit
+qwen3-30b:
+  repo: mlx-community/Qwen3-30B-A3B-4bit
+qwen3-8b:
+  repo: mlx-community/Qwen3-8B-4bit

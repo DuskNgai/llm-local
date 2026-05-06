@@ -1,0 +1,12 @@
+name: mlx
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - mlx-lm
+      - huggingface_hub[cli]
+      - openai
+      - anthropic
