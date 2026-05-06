@@ -1,12 +1,11 @@
-name: mlx
+name: llm-local
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - python=3.12
   - pip
   - pip:
-      - mlx-lm
-      - huggingface_hub[cli]
+      - vllm<0.20
+      - "huggingface_hub[cli]"
       - openai
       - anthropic

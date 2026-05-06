@@ -1,0 +1,11 @@
+name: llm-local
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - mlx-lm
+      - "huggingface_hub[cli]"
+      - openai
+      - anthropic

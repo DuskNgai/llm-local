@@ -1,28 +1,35 @@
-# MLX-LM Mac 本地 LLM 部署
+# LLM 本地部署
 
-Apple Silicon Mac 上的 MLX 本地 LLM 推理环境。
+跨平台 LLM 本地推理环境：macOS 使用 MLX，Linux 使用 vLLM。
 
 ## 环境要求
 
-- macOS Sonoma+
-- Apple Silicon (M1-M4)，24GB+ 统一内存
-- Xcode Command Line Tools（Metal 编译器）
+| | macOS | Linux |
+|---|---|---|
+| 硬件 | Apple Silicon (M1-M4), 24GB+ | NVIDIA GPU, 24GB+ VRAM |
+| 系统 | macOS Sonoma+ | Ubuntu 22.04+ |
+| 工具 | Xcode CLT (Metal) | NVIDIA 驱动 + CUDA |
 
 ## 快速开始
 
 ### 1. 安装环境
 
 ```bash
-conda env create -f environment.yaml
-conda activate mlx
+# macOS
+conda env create -f environment-macos.yaml
+
+# Linux
+conda env create -f environment-linux.yaml
+
+conda activate llm-local
 ```
 
 ### 2. 下载模型
 
 ```bash
-bash scripts/download-model.sh qwen3-8b     # 默认 8B, 5GB
-bash scripts/download-model.sh qwen3-30b    # 30B MoE, 18GB
-bash scripts/download-model.sh qwen3.6-27b  # 27B, 16GB
+bash scripts/download-model.sh qwen3-8b      # 8B AWQ, ~5GB
+bash scripts/download-model.sh qwen3-30b     # 30B MoE AWQ, ~18GB
+bash scripts/download-model.sh qwen3.6-27b   # 27B AWQ, ~16GB
 
 # 国内加速:
 # HF_ENDPOINT=https://hf-mirror.com bash scripts/download-model.sh qwen3-8b
@@ -31,7 +38,7 @@ bash scripts/download-model.sh qwen3.6-27b  # 27B, 16GB
 ### 3. 启动 API 服务
 
 ```bash
-MLX_MODEL=qwen3-8b bash scripts/serve.sh    # 指定模型
+MODEL=qwen3-8b bash scripts/serve.sh         # 自动检测平台启动对应后端
 ```
 
 ### 4. 开始聊天
@@ -39,7 +46,7 @@ MLX_MODEL=qwen3-8b bash scripts/serve.sh    # 指定模型
 在另一个终端窗口:
 
 ```bash
-conda activate mlx
+conda activate llm-local
 python scripts/chat.py                      # 默认 OpenAI, 流式输出
 python scripts/chat.py --no-stream          # 非流式输出
 python scripts/chat.py --backend anthropic  # Anthropic 协议
@@ -69,23 +76,34 @@ curl http://127.0.0.1:8001/v1/messages \
 python scripts/benchmark.py --prompts 5 --max-tokens 256
 ```
 
+## 平台架构
+
+```
+scripts/serve.sh / download-model.sh   ← 统一入口，自动检测平台
+├── serve_anthropic.py                 ← Anthropic API 代理（双平台共用）
+├── resolve_model.py                   ← 模型别名解析（双平台共用）
+├── scripts/macos/                     ← MLX 后端 (Apple Silicon)
+│   ├── serve.sh
+│   └── download-model.sh
+└── scripts/linux/                     ← vLLM 后端 (NVIDIA GPU)
+    ├── serve.sh
+    └── download-model.sh
+```
+
 ## 模型管理
 
 ### 新增模型
 
-1. 编辑 `scripts/download-model.sh`，在 `case` 语句中添加模型映射：
-   ```bash
-   new-model) REPO="mlx-community/NewModel-4bit" ;;
+1. 编辑 `models.yaml`，在对应平台下添加模型条目：
+   ```yaml
+   new-model:
+     macos:
+       repo: mlx-community/NewModel-4bit
+     linux:
+       repo: org/NewModel
    ```
-2. 下载：
-   ```bash
-   bash scripts/download-model.sh new-model
-   # 国内: HF_ENDPOINT=https://hf-mirror.com bash scripts/download-model.sh new-model
-   ```
-3. 使用：
-   ```bash
-   MLX_MODEL=new-model bash scripts/serve.sh
-   ```
+2. 编辑对应平台的 `scripts/<platform>/download-model.sh`，在 `case` 语句中添加映射。
+3. 下载：`bash scripts/download-model.sh new-model`
 
 ### 移除模型
 
