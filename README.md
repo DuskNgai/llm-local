@@ -10,6 +10,8 @@
 | 系统 | macOS Sonoma+ | Ubuntu 22.04+ |
 | 工具 | Xcode CLT (Metal) | NVIDIA 驱动 + CUDA |
 
+> **vllm<0.20 原因**：vllm 0.20+ 依赖 PyTorch/CUDA ≥ 12.9，若宿主 CUDA < 13.0 则需限定 `vllm<0.20`。若宿主 CUDA ≥ 12.9，可放开此限制。
+
 ## 快速开始
 
 ### 1. 安装环境
@@ -74,6 +76,41 @@ curl http://127.0.0.1:8001/v1/messages \
 
 ```bash
 python scripts/benchmark.py --prompts 5 --max-tokens 256
+```
+
+## Docker 部署
+
+### 构建
+
+`CUDA_VERSION` 默认匹配当前宿主驱动，可通过环境变量覆盖。
+
+```bash
+# 自动检测，或手动指定
+CUDA_VERSION=$(nvidia-smi | grep "CUDA Version" | awk '{print $9}' | cut -d. -f1,2) \
+  docker compose build
+```
+
+### 下载模型
+
+```bash
+docker compose run --rm llm-local bash scripts/download-model.sh qwen3-8b
+```
+
+模型下载到 Docker Volume `llm-cache`，只需下载一次。
+
+### 启动服务
+
+```bash
+docker compose up -d
+```
+
+OpenAI 端点: `http://127.0.0.1:8000/v1`，Anthropic 端点: `http://127.0.0.1:8001/v1/messages`。
+
+若需更换模型，设置 `MODEL` 环境变量后重新下载即可：
+
+```bash
+MODEL=qwen3-30b docker compose run --rm llm-local bash scripts/download-model.sh qwen3-30b
+MODEL=qwen3-30b docker compose up -d
 ```
 
 ## 平台架构

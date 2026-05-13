@@ -1,0 +1,29 @@
+services:
+  llm-local:
+    build:
+      context: .
+      args:
+        - CUDA_VERSION=${CUDA_VERSION:-12.8}
+    image: llm-local:latest
+    container_name: llm-local
+    environment:
+      - MODEL=${MODEL:-qwen3-8b}
+      - HOST=0.0.0.0
+      - OPENAI_PORT=8000
+      - ANTHROPIC_PORT=8001
+      - MAX_MODEL_LEN=${MAX_MODEL_LEN:-8192}
+    ports:
+      - "${OPENAI_PORT:-8000}:8000"
+      - "${ANTHROPIC_PORT:-8001}:8001"
+    volumes:
+      - llm-cache:/app/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  llm-cache:
