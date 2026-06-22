@@ -10,7 +10,7 @@
 | 系统 | macOS Sonoma+ | Ubuntu 22.04+ |
 | 工具 | Xcode CLT (Metal) | NVIDIA 驱动 + CUDA |
 
-> **vllm<0.20 原因**：vllm 0.20+ 依赖 PyTorch/CUDA ≥ 12.9，若宿主 CUDA < 13.0 则需限定 `vllm<0.20`。若宿主 CUDA ≥ 12.9，可放开此限制。
+> **vllm<0.20 原因**：vllm 0.20+ 依赖 PyTorch/CUDA >= 12.9，若宿主 CUDA < 13.0 则需限定 `vllm<0.20`。若宿主 CUDA >= 12.9，可放开此限制。
 
 ## 快速开始
 
@@ -18,43 +18,61 @@
 
 ```bash
 # macOS
-conda env create -f environment-macos.yaml
+conda env create -f env/environment-macos.yaml
 
 # Linux
-conda env create -f environment-linux.yaml
+conda env create -f env/environment-linux.yaml
 
-conda activate llm-local
+conda activate agent-local
 ```
 
-### 2. 下载模型
+### 2. 配置
+
+复制并编辑环境配置：
 
 ```bash
-bash scripts/download-model.sh qwen3-8b      # 8B AWQ, ~5GB
-bash scripts/download-model.sh qwen3-30b     # 30B MoE AWQ, ~18GB
-bash scripts/download-model.sh qwen3.6-27b   # 27B AWQ, ~16GB
+cp .env.example .env
+# 编辑 .env 设置 BASE_URL, API_KEY, MODEL, OPENAI_PORT, ANTHROPIC_PORT
+```
+
+### 3. 下载模型
+
+```bash
+python main.py download qwen3.5-9b    # 9B AWQ, ~6GB
+python main.py download qwen3.5-35b   # 35B AWQ, ~6GB
+python main.py download qwen3.6-27b   # 27B AWQ, ~16GB
 
 # 国内加速:
-# HF_ENDPOINT=https://hf-mirror.com bash scripts/download-model.sh qwen3-8b
+# HF_ENDPOINT=https://hf-mirror.com python main.py download qwen3.5-9b
 ```
 
-### 3. 启动 API 服务
+### 4. 启动 API 服务
 
 ```bash
-MODEL=qwen3-8b bash scripts/serve.sh         # 自动检测平台启动对应后端
+python main.py serve
 ```
 
-### 4. 开始聊天
+### 5. 开始聊天
 
 在另一个终端窗口:
 
 ```bash
-conda activate llm-local
-python scripts/chat.py                      # 默认 OpenAI, 流式输出
-python scripts/chat.py --no-stream          # 非流式输出
-python scripts/chat.py --backend anthropic  # Anthropic 协议
+conda activate agent-local
+python main.py chat
 ```
 
-### 5. 直接调用 API
+Agent 支持工具调用（Shell 工具）和丰富的对话管理功能：
+- `/save [name]` — 保存当前对话
+- `/load <name>` — 加载存档
+- `/list` — 列出所有存档
+- `/clear` — 清空上下文
+- `/branch` — 创建对话分支
+- `/switch` — 切换对话分支
+- `/undo` — 撤销上一步
+- `/copy` — 复制对话
+- `/exit` — 退出
+
+### 6. 直接调用 API
 
 OpenAI 兼容端点:
 
@@ -64,18 +82,10 @@ curl http://127.0.0.1:8000/v1/chat/completions \
   -d '{"messages":[{"role":"user","content":"Hello!"}]}'
 ```
 
-Anthropic 兼容端点:
+### 7. 性能基准测试
 
 ```bash
-curl http://127.0.0.1:8001/v1/messages \
-  -H "Content-Type: application/json" \
-  -d '{"model":"qwen3-8b","messages":[{"role":"user","content":"Hello!"}],"max_tokens":100}'
-```
-
-### 6. 性能基准测试
-
-```bash
-python scripts/benchmark.py --prompts 5 --max-tokens 256
+python tests/benchmark.py --prompts 5 --max-tokens 256
 ```
 
 ## Docker 部署
@@ -87,13 +97,13 @@ python scripts/benchmark.py --prompts 5 --max-tokens 256
 ```bash
 # 自动检测，或手动指定
 CUDA_VERSION=$(nvidia-smi | grep "CUDA Version" | awk '{print $9}' | cut -d. -f1,2) \
-  docker compose build
+  docker compose -f docker/docker-compose.yml build
 ```
 
 ### 下载模型
 
 ```bash
-docker compose run --rm llm-local bash scripts/download-model.sh qwen3-8b
+docker compose -f docker/docker-compose.yml run --rm agent-local python main.py download qwen3.5-9b
 ```
 
 模型下载到 Docker Volume `llm-cache`，只需下载一次。
@@ -101,37 +111,23 @@ docker compose run --rm llm-local bash scripts/download-model.sh qwen3-8b
 ### 启动服务
 
 ```bash
-docker compose up -d
+docker compose -f docker/docker-compose.yml up -d
 ```
 
-OpenAI 端点: `http://127.0.0.1:8000/v1`，Anthropic 端点: `http://127.0.0.1:8001/v1/messages`。
+OpenAI 端点: `http://127.0.0.1:8000/v1`。
 
 若需更换模型，设置 `MODEL` 环境变量后重新下载即可：
 
 ```bash
-MODEL=qwen3-30b docker compose run --rm llm-local bash scripts/download-model.sh qwen3-30b
-MODEL=qwen3-30b docker compose up -d
-```
-
-## 平台架构
-
-```
-scripts/serve.sh / download-model.sh   ← 统一入口，自动检测平台
-├── serve_anthropic.py                 ← Anthropic API 代理（双平台共用）
-├── resolve_model.py                   ← 模型别名解析（双平台共用）
-├── scripts/macos/                     ← MLX 后端 (Apple Silicon)
-│   ├── serve.sh
-│   └── download-model.sh
-└── scripts/linux/                     ← vLLM 后端 (NVIDIA GPU)
-    ├── serve.sh
-    └── download-model.sh
+MODEL=qwen3.5-35b docker compose -f docker/docker-compose.yml run --rm agent-local python main.py download qwen3.5-35b
+MODEL=qwen3.5-35b docker compose -f docker/docker-compose.yml up -d
 ```
 
 ## 模型管理
 
 ### 新增模型
 
-1. 编辑 `models.yaml`，在对应平台下添加模型条目：
+1. 编辑 `local-models.yaml`，在对应平台下添加模型条目：
    ```yaml
    new-model:
      macos:
@@ -139,23 +135,12 @@ scripts/serve.sh / download-model.sh   ← 统一入口，自动检测平台
      linux:
        repo: org/NewModel
    ```
-2. 编辑对应平台的 `scripts/<platform>/download-model.sh`，在 `case` 语句中添加映射。
-3. 下载：`bash scripts/download-model.sh new-model`
+2. 下载：`python main.py download new-model`
 
 ### 移除模型
 
 ```bash
-# 1. 从 models.yaml 中删除对应条目
+# 1. 从 local-models.yaml 中删除对应条目
 # 2. 删除 HF 缓存
 rm -rf .cache/huggingface/models--<org>--<model-name>
-```
-
-## 对话管理
-
-```
-/save [name]    保存当前对话到 .cache/chats/
-/load <name>    加载存档
-/list           列出所有存档
-/clear          清空上下文
-/exit           退出
 ```

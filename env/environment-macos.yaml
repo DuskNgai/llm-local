@@ -1,11 +1,14 @@
-name: llm-local
+name: agent-local
 channels:
   - conda-forge
 dependencies:
   - python=3.12
   - pip
   - pip:
-      - vllm<0.20
-      - "huggingface_hub[cli]"
-      - openai
       - anthropic
+      - "huggingface_hub[cli]"
+      - mlx-lm
+      - openai
+      - gnureadline
+      - python-dotenv
+      - pyyaml

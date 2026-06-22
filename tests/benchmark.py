@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
 """Benchmark MLX-LM inference performance."""
 
 import argparse
 import statistics
 import time
-from openai import OpenAI
 
+import httpx
+from openai import OpenAI
 
 PROMPTS = [
     "用 Python 写一个快速排序算法",
@@ -29,17 +29,33 @@ def run_benchmark(client, model: str, prompts: list[str], max_tokens: int) -> di
     throughputs = []
 
     for i, prompt in enumerate(prompts):
-        messages = [{"role": "user", "content": prompt}]
+        messages = [{
+            "role": "user",
+            "content": prompt
+        }]
         t0 = time.time()
         tokens_out = 0
         ttft = None
 
         response = client.chat.completions.create(
-            model=model, messages=messages,
-            max_tokens=max_tokens, temperature=0.0, stream=True,
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=0.0,
+            stream=True,
         )
         for chunk in response:
-            if chunk.choices[0].delta.content:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            # Reason models emit reasoning tokens before content tokens;
+            # count both for throughput, but track first-any-token latency
+            chunk_text = delta.content
+            if chunk_text is None:
+                chunk_text = getattr(delta, 'reasoning', None)
+            if chunk_text is None:
+                chunk_text = ""
+            if chunk_text:
                 if ttft is None:
                     ttft = time.time() - t0
                     ttfts.append(ttft)
@@ -51,8 +67,8 @@ def run_benchmark(client, model: str, prompts: list[str], max_tokens: int) -> di
         throughput = tokens_out / elapsed if elapsed > 0 else 0
         throughputs.append(throughput)
 
-        print(f"  [{i+1}/{len(prompts)}] {prompt[:50]}... "
-              f"TTFT: {ttft:.2f}s, {tokens_out} tokens, {throughput:.1f} tokens/s")
+        ttft_str = f"{ttft:.2f}" if ttft is not None else "N/A"
+        print(f"  [{i + 1}/{len(prompts)}] {prompt[:50]}... TTFT: {ttft_str}s, {tokens_out} tokens, {throughput:.1f} tokens/s")
 
     n = len(ttfts)
     return {
@@ -73,8 +89,9 @@ def main():
     parser.add_argument("--prompts", type=int, default=len(PROMPTS))
     args = parser.parse_args()
 
-    client = OpenAI(base_url=f"http://127.0.0.1:{args.port}/v1", api_key="not-needed")
-    prompts = PROMPTS[:args.prompts]
+    http_client = httpx.Client(proxy=None, trust_env=False)
+    client = OpenAI(base_url=f"http://127.0.0.1:{args.port}/v1", api_key="not-needed", http_client=http_client)
+    prompts = PROMPTS[: args.prompts]
 
     print(f"Benchmark: model={args.model}, prompts={len(prompts)}, max_tokens={args.max_tokens}\n")
     results = run_benchmark(client, args.model, prompts, args.max_tokens)

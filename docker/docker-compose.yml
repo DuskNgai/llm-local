@@ -1,13 +1,14 @@
 services:
-  llm-local:
+  agent-local:
     build:
-      context: .
+      context: ..
+      dockerfile: docker/Dockerfile
       args:
         - CUDA_VERSION=${CUDA_VERSION:-12.8}
-    image: llm-local:latest
-    container_name: llm-local
+    image: agent-local:latest
+    container_name: agent-local
     environment:
-      - MODEL=${MODEL:-qwen3-8b}
+      - MODEL=${MODEL:-qwen3.5-9b}
       - HOST=0.0.0.0
       - OPENAI_PORT=8000
       - ANTHROPIC_PORT=8001

@@ -19,14 +19,16 @@ RUN pip config set global.index-url https://pypi.mirrors.ustc.edu.cn/simple \
     "huggingface_hub[cli]" \
     openai \
     anthropic \
-    pyyaml
+    pyyaml \
+    python-dotenv
 
 WORKDIR /app
 
-COPY scripts/ ./scripts/
-COPY models.yaml .
+COPY local-models.yaml .
+COPY main.py .
+COPY src/ ./src/
 
-ENV MODEL=qwen3-8b \
+ENV MODEL=qwen3.5-9b \
     HOST=0.0.0.0 \
     OPENAI_PORT=8000 \
     ANTHROPIC_PORT=8001 \
@@ -39,4 +41,4 @@ EXPOSE 8000 8001
 VOLUME ["/app/.cache"]
 
 ENTRYPOINT []
-CMD ["bash", "scripts/serve.sh"]
+CMD ["python", "main.py", "serve"]
